@@ -398,18 +398,12 @@ tr.yo .rn{color:var(--gold)}
         <option value="">— Selecciona tu nombre —</option>
       </select>
     </div>
-    <div class="foto-opciones">
-      <div class="foto-opcion" id="opcion-camara">
-        <input type="file" id="foto-camara" accept="image/*" capture="environment" onchange="previsualizarFoto(this,'camara')">
-        <div class="foto-opcion-icon">📷</div>
-        <div class="foto-opcion-label">Cámara</div>
-        <div class="foto-opcion-sub">Tomar foto nueva</div>
-      </div>
+    <div class="foto-opciones" style="grid-template-columns:1fr">
       <div class="foto-opcion" id="opcion-galeria">
         <input type="file" id="foto-galeria" accept="image/*" onchange="previsualizarFoto(this,'galeria')">
         <div class="foto-opcion-icon">🖼️</div>
         <div class="foto-opcion-label">Galería / Captura</div>
-        <div class="foto-opcion-sub">Seleccionar imagen</div>
+        <div class="foto-opcion-sub">Seleccionar imagen desde tu dispositivo</div>
       </div>
     </div>
     <div class="pago-preview" id="pago-preview">
@@ -569,14 +563,14 @@ onValue(refQ, snap => {
   prevCount = newCount;
   cachedData = nuevo;
   renderTabla(); renderPicks(); renderSelectParticipantes(); renderStatsBar();
-  if(adminLogged){ renderAdminPanel(); document.getElementById("admin-badge").classList.remove("visible"); }
+  if(adminLogged){ renderAdminPanel(); renderAdminPicksStats(); document.getElementById("admin-badge").classList.remove("visible"); }
   document.getElementById("loader").classList.add("hidden");
 });
 onValue(refR, async snap => {
   cachedRes = snap.val() || [];
   await recalcularAciertos();
   renderTabla(); renderPicks(); renderPartidosStats();
-  if(adminLogged) renderAdminPanel();
+  if(adminLogged){ renderAdminPanel(); renderAdminPicksStats(); }
 });
 onValue(refC, snap => {
   cerrada = snap.val() === true;
@@ -650,12 +644,16 @@ function renderPartidos(){
 }
 
 function renderPartidosStats(){
-  // % de picks L/E/V por partido
+  // Estadísticas ocultadas de la vista de participantes — solo en Admin
+}
+
+function renderAdminPicksStats(){
+  // % de picks L/E/V por partido — solo panel admin
   const ks = Object.keys(cachedData);
-  if(!ks.length) return;
   allPartidos.forEach((_,i) => {
-    const wrap = document.getElementById(`stats-${i}`);
+    const wrap = document.getElementById(`admin-stats-${i}`);
     if(!wrap) return;
+    if(!ks.length){ wrap.innerHTML=""; return; }
     let cL=0,cE=0,cV=0;
     ks.forEach(k=>{
       const p=(cachedData[k].picks||[])[i];
@@ -663,8 +661,7 @@ function renderPartidosStats(){
     });
     const total=cL+cE+cV||1;
     const pL=Math.round(cL/total*100),pE=Math.round(cE/total*100),pV=Math.round(cV/total*100);
-    wrap.classList.add("visible");
-    wrap.innerHTML=`<div class="match-stats">
+    wrap.innerHTML=`<div class="match-stats" style="max-width:100%;margin-top:4px">
       <div class="ms-l" style="width:${pL}%"></div>
       <div class="ms-e" style="width:${pE}%"></div>
       <div class="ms-v" style="width:${pV}%"></div>
@@ -794,8 +791,7 @@ function lanzarConfetti(){
 // ── FOTO PAGO ─────────────────────────────────────────────────
 window.previsualizarFoto=function(input,fuente){
   const file=input.files[0];if(!file)return;
-  document.getElementById("opcion-camara").classList.toggle("activa",fuente==="camara");
-  document.getElementById("opcion-galeria").classList.toggle("activa",fuente==="galeria");
+  document.getElementById("opcion-galeria").classList.add("activa");
   const reader=new FileReader();
   reader.onload=e=>{
     fotoBase64=e.target.result;
@@ -808,9 +804,7 @@ window.quitarFoto=function(){
   fotoBase64=null;
   document.getElementById("pago-preview").style.display="none";
   document.getElementById("pago-img").src="";
-  document.getElementById("foto-camara").value="";
   document.getElementById("foto-galeria").value="";
-  document.getElementById("opcion-camara").classList.remove("activa");
   document.getElementById("opcion-galeria").classList.remove("activa");
 };
 window.enviarComprobanteWA=async function(){
@@ -986,14 +980,17 @@ function renderResultadosForm(){
   let html="";
   allPartidos.forEach((p,i)=>{
     const cur=resLocal[i]||"";
-    html+=`<div class="result-match">
+    html+=`<div class="result-match" style="flex-wrap:wrap;gap:8px">
       <span class="result-num">${i+1}</span>
       <span class="result-match-name">${p.local}<span style="color:var(--muted);font-size:11px;margin:0 4px">vs</span>${p.visita} <span style="color:var(--muted);font-size:11px">${p.hora}mx</span></span>
       <div style="display:flex;gap:6px">
         ${["L","E","V"].map(v=>`<span class="result-tag ${v}${cur===v?" active":""}" onclick="toggleResLocal(${i},'${v}',this)">${v}</span>`).join("")}
-      </div></div>`;
+      </div>
+      <div id="admin-stats-${i}" style="flex-basis:100%;padding:2px 4px 6px"></div>
+    </div>`;
   });
   document.getElementById("resultados-form").innerHTML=html;
+  renderAdminPicksStats();
 }
 window.toggleResLocal=function(idx,val,el){
   while(resLocal.length<=idx)resLocal.push("");
