@@ -185,6 +185,11 @@ table.ts td{padding:11px 16px;font-size:15px;font-weight:600}
 .pago-section{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px 24px;margin-top:16px}
 .pago-section h3{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--gold);margin-bottom:8px}
 .pago-desc{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5}
+.pago-nombre-wrap{margin-bottom:14px}
+.pago-nombre-label{display:block;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1.5px;color:var(--gold);margin-bottom:6px}
+.pago-select{width:100%;background:#0a1220;border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;color:#fff;font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:600;outline:none;cursor:pointer;transition:border-color .2s;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236b82a8' d='M6 8L0 0h12z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+.pago-select:focus{border-color:var(--gold)}
+.pago-select option{background:#0d1629;color:#fff}
 /* Opciones de fuente de imagen */
 .foto-opciones{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
 .foto-opcion{position:relative;background:#0a1220;border:2px dashed var(--border);border-radius:12px;padding:20px 12px;text-align:center;cursor:pointer;transition:all .2s}
@@ -259,7 +264,13 @@ table.ts td{padding:11px 16px;font-size:15px;font-weight:600}
   <!-- FOTO PAGO -->
   <div class="pago-section">
     <h3>💳 Comprobante de Pago</h3>
-    <p class="pago-desc">Sube tu comprobante de pago. Elige entre tomar una foto nueva o seleccionar una captura de pantalla o imagen de tu galería.</p>
+    <p class="pago-desc">Selecciona tu nombre de la lista y sube tu comprobante de pago.</p>
+    <div class="pago-nombre-wrap">
+      <label class="pago-nombre-label">👤 ¿Quién eres?</label>
+      <select id="pago-participante" class="pago-select">
+        <option value="">— Selecciona tu nombre —</option>
+      </select>
+    </div>
     <div class="foto-opciones">
       <!-- Opción 1: Cámara -->
       <div class="foto-opcion" id="opcion-camara">
@@ -452,7 +463,7 @@ const refC  = ref(db, "quiniela_j2/cerrada");
 // ── ESCUCHAS EN TIEMPO REAL ───────────────────────────────────
 onValue(refQ, snap => {
   cachedData = snap.val() || {};
-  renderTabla(); renderPicks();
+  renderTabla(); renderPicks(); renderSelectParticipantes();
   if(adminLogged) renderAdminPanel();
   document.getElementById("loader").classList.add("hidden");
 });
@@ -603,16 +614,31 @@ window.quitarFoto = function(){
   document.getElementById("opcion-galeria").classList.remove("activa");
 };
 window.enviarComprobanteWA = async function(){
-  const nombre = document.getElementById("nombre").value.trim()||"Participante";
+  const sel = document.getElementById("pago-participante");
+  const key = sel.value;
+  if(!key){showToast("⚠️ Selecciona tu nombre de la lista");sel.focus();return;}
   if(!fotoBase64){showToast("⚠️ Primero selecciona o toma una foto del comprobante");return;}
-  const key = nombre.replace(/[.#$\[\]/]/g,"_");
-  if(cachedData[key]){
-    try{ await update(ref(db,`quiniela_j2/participantes/${key}`),{foto:fotoBase64}); }catch(e){}
-  }
+  const nombre = cachedData[key]?.nombre || key;
+  try{ await update(ref(db,`quiniela_j2/participantes/${key}`),{foto:fotoBase64}); }catch(e){}
   const txt = encodeURIComponent(`💳 Comprobante de pago\n👤 ${nombre}\n🏆 Quiniela Mundial 2026 — Jornada 2\n\n(imagen adjunta)`);
   window.open(WA_NUMBER?`https://wa.me/${WA_NUMBER}?text=${txt}`:`https://wa.me/?text=${txt}`,"_blank");
-  showToast("📲 Abriendo WhatsApp con tu comprobante…");
+  showToast("📲 Comprobante guardado y WhatsApp abierto");
 };
+
+// Llenar el select con participantes registrados en Firebase
+function renderSelectParticipantes(){
+  const sel = document.getElementById("pago-participante");
+  const prev = sel.value;
+  const ks = Object.keys(cachedData).sort((a,b)=>(cachedData[a].nombre||a).localeCompare(cachedData[b].nombre||b));
+  sel.innerHTML = `<option value="">— Selecciona tu nombre —</option>`;
+  ks.forEach(k=>{
+    const opt = document.createElement("option");
+    opt.value = k;
+    opt.textContent = cachedData[k].nombre || k;
+    if(k===prev) opt.selected=true;
+    sel.appendChild(opt);
+  });
+}
 window.abrirFoto = function(src){
   document.getElementById("modal-foto-img").src=src;
   document.getElementById("modal-foto").classList.add("open");
